@@ -19,6 +19,7 @@ x-defaults: &defaults
     SENTRY_REDIS_HOST: redis
     SENTRY_POSTGRES_HOST: postgres
     SENTRY_EMAIL_HOST: mail
+    SENTRY_SERVER_EMAIL: ${SENTRY_SERVER_EMAIL}
   volumes:
     - sentry-data:/var/lib/sentry/files
 
@@ -69,8 +70,6 @@ services:
   mail:
     image: bytemark/smtp
     restart: always
-    environment:
-      SENTRY_SERVER_EMAIL: sentry@docker.ladlow.net
     networks:
       - frontend
       - backend
