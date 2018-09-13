@@ -1,21 +1,9 @@
-version: '3'
+version: '3.4'
 # See https://docs.docker.com/compose/overview/ for more information.
 
 # If you make changes to this file or any related files, apply them by
 # navigating to the directory that holds this file and run this as root:
 #   docker-compose down; docker-compose up -d
-
-# Create two networks: one for front-end containers that we'll make
-# publicly accessible to the internet, and one for private back-end.
-networks:
-  frontend:
-  backend:
-
-# Create persistent Docker volumes to preserve important data.
-# We don't want our data to be lost when restarting containers.
-volumes:
-  sentry-data:
-  sentry-postgres:
 
 x-defaults: &defaults
   restart: unless-stopped
@@ -24,11 +12,8 @@ x-defaults: &defaults
     - redis
     - postgres
     - memcached
-    - smtp
-
+    - mail
   environment:
-    # Run `docker-compose run web config generate-secret-key`
-    # to get the SENTRY_SECRET_KEY value.
     SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
     SENTRY_MEMCACHED_HOST: memcached
     SENTRY_REDIS_HOST: redis
@@ -47,8 +32,8 @@ services:
     command: --api --docker --acme.email="${ACME_EMAIL}"
     restart: always
     networks:
-      - backend
       - frontend
+      - backend
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Access to Docker
       - ./traefik.toml:/traefik.toml              # Traefik configuration
@@ -78,76 +63,82 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
-  postgres:
-    # https://hub.docker.com/_/postgres/
-    # Specify 9.5 as we only want watchtower to apply minor updates
-    # (eg, 9.5.1) and not major updates (eg, 9.6).
-    image: postgres:9.5
-    restart: always
-    networks:
-      - backend
-    volumes:
-      # Ensure the database persists between restarts.
-      - sentry-postgres:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${SENTRY_DB_USER}
-      POSTGRES_PASSWORD: ${SENTRY_DB_PASSWORD}
-
-  memcached:
-    image: memcached:1.4
-    restart: always
-
-  redis:
-    image: redis:3.2-alpine
-    restart: always
-
-  matomo:
-    image: matomo:latest
-    links:
-      - matomo-db
-    networks:
-      - backend
-      - frontend
-    volumes:
-      # To allow you to view/edit Matomo configuration files:
-      - ./config:/var/www/html/config:rw
-      # To allow you to easily view Matomo log files:
-      - ./logs:/var/www/html/logs
-      # Install our own php.ini, which can be customized:
-      - ./php.ini:/usr/local/etc/php/php.ini
-      # Use MaxMind GeoLite2 databases.
-      #- /var/lib/GeoIP/GeoLite2-City.mmdb:/var/www/html/misc/GeoLite2-City.mmdb
-      #- /var/lib/GeoIP/GeoLite2-Country.mmdb:/var/www/html/misc/GeoLite2-Country.mmdb
-      #- /var/lib/GeoIP/GeoLite2-ASN.mmdb:/var/www/html/misc/GeoLite2-ASN.mmdb
-    labels:
-      - "traefik.docker.network=frontend"
-      - "traefik.enable=true"
-      - "traefik.frontend.rule=Host:${MATOMO_DOMAINS}"
-      - "traefik.port=80"
-      - "traefik.protocol=http"
-      # Uncomment the next line to enable HSTS header.
-      #- "traefik.frontend.headers.STSSeconds=15768000"
-
-  web:
-    <<: *defaults
-    ports:
-      - '9000:9000'
-
-  cron:
-    <<: *defaults
-    command: run cron
-
-  worker:
-    <<: *defaults
-    command: run worker
-
   # This allows Sentry to send email straight out of the box without
   # having to rely on an external provider like SendGrid or MailGun.
   # It makes an SMTP host available at the hostname "mail".
   mail:
     image: bytemark/smtp
     restart: always
+    environment:
+      SENTRY_SERVER_EMAIL: sentry@docker.ladlow.net
     networks:
       - frontend
+      - backend
+
+  memcached:
+    image: memcached:1.4
+    restart: always
+    networks:
+      - backend
+
+  redis:
+    image: redis:3.2-alpine
+    restart: always
+    networks:
+      - backend
+
+  postgres:
+    # https://hub.docker.com/_/postgres/
+    # Specify 9.5 as we only want watchtower to apply minor updates
+    # (eg, 9.5.1) and not major updates (eg, 9.6).
+    image: postgres:9.5
+    restart: always
+    environment:
+      SENTRY_DB_NAME: ${SENTRY_DB_NAME}
+      SENTRY_DB_USER: ${SENTRY_DB_USER}
+      SENTRY_DB_PASSWORD: ${SENTRY_DB_PASSWORD}
+    networks:
+      - backend
+    volumes:
+      # Ensure the database persists between restarts.
+      - sentry-postgres:/var/lib/postgresql/data
+
+  web:
+    <<: *defaults
+    networks:
+      - frontend
+      - backend
+    labels:
+      - "traefik.docker.network=frontend"
+      - "traefik.enable=true"
+      - "traefik.frontend.rule=Host:${SENTRY_DOMAINS}"
+      - "traefik.port=9000"
+      - "traefik.protocol=http"
+      # Uncomment the next line to enable HSTS header.
+      #- "traefik.frontend.headers.STSSeconds=15768000"
+
+  cron:
+    <<: *defaults
+    command: run cron
+    networks:
+      - backend
+
+  worker:
+    <<: *defaults
+    command: run worker
+    networks:
+      - backend
+
+# Create two networks: one for front-end containers that we'll make
+# publicly accessible to the internet, and one for private back-end.
+networks:
+  frontend:
+  backend:
+
+# Create persistent Docker volumes to preserve important data.
+# We don't want our data to be lost when restarting containers.
+volumes:
+  sentry-data:
+  sentry-postgres:
 
 
