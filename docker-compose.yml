@@ -92,12 +92,11 @@ services:
     # (eg, 9.5.1) and not major updates (eg, 9.6).
     image: postgres:9.5
     restart: always
-    environment:
-      SENTRY_DB_NAME: ${SENTRY_DB_NAME}
-      SENTRY_DB_USER: ${SENTRY_DB_USER}
-      SENTRY_DB_PASSWORD: ${SENTRY_DB_PASSWORD}
     networks:
       - backend
+    environment:
+      POSTGRESS_USERNAME: ${SENTRY_DB_USERNAME}
+      POSTGRES_PASSWORD: ${SENTRY_DB_PASSWORD}
     volumes:
       # Ensure the database persists between restarts.
       - sentry-postgres:/var/lib/postgresql/data
