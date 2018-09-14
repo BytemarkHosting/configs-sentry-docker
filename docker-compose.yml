@@ -15,11 +15,13 @@ x-defaults: &defaults
     - mail
   environment:
     SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
-    SENTRY_MEMCACHED_HOST: memcached
     SENTRY_REDIS_HOST: redis
     SENTRY_POSTGRES_HOST: postgres
+    SENTRY_MEMCACHED_HOST: memcached
     SENTRY_EMAIL_HOST: mail
     SENTRY_SERVER_EMAIL: ${SENTRY_SERVER_EMAIL}
+    SENTRY_DB_USERNAME: ${SENTRY_DB_USERNAME}
+    SENTRY_DB_PASSWORD: ${SENTRY_DB_PASSWORD}
   volumes:
     - sentry-data:/var/lib/sentry/files
 
@@ -73,18 +75,24 @@ services:
     networks:
       - frontend
       - backend
+    labels:
+      - "traefik.enable=false"
 
   memcached:
     image: memcached:1.4
     restart: always
     networks:
       - backend
+    labels:
+      - "traefik.enable=false"
 
   redis:
     image: redis:3.2-alpine
     restart: always
     networks:
       - backend
+    labels:
+      - "traefik.enable=false"
 
   postgres:
     # https://hub.docker.com/_/postgres/
@@ -100,6 +108,8 @@ services:
     volumes:
       # Ensure the database persists between restarts.
       - sentry-postgres:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=false"
 
   web:
     <<: *defaults
@@ -120,12 +130,16 @@ services:
     command: run cron
     networks:
       - backend
+    labels:
+      - "traefik.enable=false"
 
   worker:
     <<: *defaults
     command: run worker
     networks:
       - backend
+    labels:
+      - "traefik.enable=false"
 
 # Create two networks: one for front-end containers that we'll make
 # publicly accessible to the internet, and one for private back-end.
